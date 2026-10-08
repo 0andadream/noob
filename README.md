@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Noob
 
-## Getting Started
+Noob lets a beginner deploy a token on [QMS Testnet](https://docs.qms.finance/for-developers/network-and-rpc) without writing code.
 
-First, run the development server:
+You connect a browser wallet, fill in a short form, and sign the deployment yourself. Noob never holds a private key and never sends a transaction on your behalf. The tokens are test tokens. They have no money value, and QMS Testnet can be reset.
+
+This version deploys ERC-20 tokens. An ERC-721 collectible is shown in the template list and is not deployable yet. There is no free-form Solidity input.
+
+## Network
+
+| | |
+| --- | --- |
+| Network | QMS Testnet |
+| Chain ID | 19480 |
+| RPC | https://rpc.testnet.qms.finance |
+| Currency | QMS |
+| Explorer | https://testnet.qmsscan.io |
+| Faucet | https://faucet.testnet.qms.finance |
+
+If the wallet does not already have QMS Testnet, connecting asks it to add the network and switch to it.
+
+## Run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the app, connect MetaMask, Rabby, or another injected wallet, and get test QMS from the faucet. The faucet sends 10 test QMS per request, up to 4 requests a day.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What gets deployed
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The form compiles nothing in the browser. It deploys one of four contracts that were compiled ahead of time from OpenZeppelin Contracts v5.6.1. The creation bytecode is in `lib/erc20-artifacts.ts`. The constructor arguments are the name, the symbol, and the supply in 18-decimal units.
 
-## Learn More
+| Choice | Contract | What it can do |
+| --- | --- | --- |
+| Neither toggle | `NoobToken` | Fixed supply, minted to the deployer. No owner. |
+| Burnable | `NoobTokenBurnable` | Holders can destroy their own tokens. No owner. |
+| Mintable | `NoobTokenMintable` | The owner can mint more. There is no cap. |
+| Both | `NoobTokenMintableBurnable` | Owner mint, plus holder burn. |
 
-To learn more about Next.js, take a look at the following resources:
+Source is in `src/`. The deployer receives the initial supply. On the mintable contracts, the deployer is the first owner and can transfer or renounce ownership. Nobody can freeze a wallet or move tokens that wallet has not approved.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Solidity 0.8.30, optimizer 200 runs, EVM version `cancun`. QMS Testnet runs the Osaka hard fork, which accepts that bytecode. QMS does not have finality yet, so Noob waits for one mined block rather than a finalized block.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Regenerate the bytecode after a contract change:
 
-## Deploy on Vercel
+```bash
+npm run contracts:export
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+That needs [Foundry](https://book.getfoundry.sh/) and `npm install`, because the OpenZeppelin sources come from `node_modules`. `lib/forge-std` is a git submodule used only by the contract tests.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Test
+
+```bash
+npm test
+```
+
+`npm test` runs the Forge contract tests, checks that the committed bytecode matches the build, and deploys each variant on a local Anvil chain with id 19480.
+
+```bash
+npm run test:e2e
+```
+
+The browser test starts Anvil and the app, connects a mock wallet, checks that QMS Testnet is added, and deploys a token through the form. It uses Chrome.
+
+`NEXT_PUBLIC_QMS_RPC_URL` overrides the RPC for that local Anvil run. The chain id stays 19480. Leave it unset to use the public QMS Testnet RPC.
